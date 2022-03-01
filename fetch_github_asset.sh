@@ -15,6 +15,8 @@ if [[ -n ${INPUT_REPO} ]]; then
   REPO=$INPUT_REPO
 fi
 
+echo "INPUT_REGEX:$INPUT_REGEX"
+
 # Optional target file path
 if [[ "$INPUT_REGEX" == "true" ]]; then
   TARGET=""
