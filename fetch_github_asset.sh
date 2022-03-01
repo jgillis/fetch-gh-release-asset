@@ -16,7 +16,11 @@ if [[ -n ${INPUT_REPO} ]]; then
 fi
 
 # Optional target file path
-TARGET=$INPUT_FILE
+if [[ "$INPUT_REGEX" == "true" ]]; then
+  TARGET=""
+else
+  TARGET=$INPUT_FILE
+fi
 if [[ -n ${INPUT_TARGET} ]]; then
   TARGET=$INPUT_TARGET
 fi
@@ -28,6 +32,7 @@ if [[ -n ${INPUT_TOKEN} ]]; then
 fi
 
 API_URL="https://api.github.com/repos/$REPO"
+echo "$API_URL/releases/${INPUT_VERSION}"
 RELEASE_DATA=$(curl ${TOKEN:+"-H"} ${TOKEN:+"Authorization: token ${TOKEN}"} \
                     "$API_URL/releases/${INPUT_VERSION}")
 MESSAGE=$(echo "$RELEASE_DATA" | jq -r ".message")
@@ -44,8 +49,12 @@ if [[ "$MESSAGE" == "Not Found" ]]; then
 fi
 
 echo "MESSAGE: '$RELEASE_DATA'"
+if [[ "$INPUT_REGEX" == "true" ]]; then
+  ASSET_ID=$(echo "$RELEASE_DATA" | jq -r ".assets | .[] | select(.name|test(\"${INPUT_FILE}\")) | .id")
+else
+  ASSET_ID=$(echo "$RELEASE_DATA" | jq -r ".assets | .[] | select(.name == \"${INPUT_FILE}\") | .id")
+fi
 
-ASSET_ID=$(echo "$RELEASE_DATA" | jq -r ".assets | .[] | select(.name == \"${INPUT_FILE}\") | .id")
 TAG_VERSION=$(echo "$RELEASE_DATA" | jq -r ".tag_name" | sed -e "s/^v//" | sed -e "s/^v.//")
 RELEASE_NAME=$(echo "$RELEASE_DATA" | jq -r ".name")
 RELEASE_BODY=$(echo "$RELEASE_DATA" | jq -r ".body")
@@ -55,14 +64,29 @@ if [[ -z "$ASSET_ID" ]]; then
   exit 1
 fi
 
-curl \
-  -J \
-  -L \
-  -H "Accept: application/octet-stream" \
-  ${TOKEN:+"-H"} ${TOKEN:+"Authorization: token ${TOKEN}"} \
-  "$API_URL/releases/assets/$ASSET_ID" \
-  --create-dirs \
-  -o "${TARGET}"
+if [[ "$INPUT_REGEX" == "true" ]]; then
+  for SINGLE_ASSET_ID in $ASSET_ID
+  do
+    NAME=$(echo "$RELEASE_DATA" | jq -r ".assets | .[] | select(.id == ${SINGLE_ASSET_ID}) | .name")
+    curl \
+      -J \
+      -L \
+      -H "Accept: application/octet-stream" \
+      ${TOKEN:+"-H"} ${TOKEN:+"Authorization: token ${TOKEN}"} \
+      "$API_URL/releases/assets/$SINGLE_ASSET_ID" \
+      --create-dirs \
+      -o "${TARGET}${NAME}"
+  done
+else
+  curl \
+    -J \
+    -L \
+    -H "Accept: application/octet-stream" \
+    ${TOKEN:+"-H"} ${TOKEN:+"Authorization: token ${TOKEN}"} \
+    "$API_URL/releases/assets/$ASSET_ID" \
+    --create-dirs \
+    -o "${TARGET}"
+fi
 
 echo "::set-output name=version::$TAG_VERSION"
 echo "::set-output name=name::$RELEASE_NAME"
