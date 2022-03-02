@@ -52,7 +52,10 @@ fi
 
 echo "MESSAGE: '$RELEASE_DATA'"
 if [[ "$INPUT_REGEX" == "true" ]]; then
-  ASSET_ID=$(echo "$RELEASE_DATA" | jq -r ".assets | .[] | select(.name|test(\"${INPUT_FILE}\")) | .id")
+  echo $INPUT_FILE
+  INPUT_FILE_ESCAPE=$(echo $INPUT_FILE | sed -e "s/\\\\/\\\\\\\/g")
+  echo $INPUT_FILE_ESCAPE
+  ASSET_ID=$(echo "$RELEASE_DATA" | jq -r ".assets | .[] | select(.name|test(\"${INPUT_FILE_ESCAPE}\")) | .id")
 else
   ASSET_ID=$(echo "$RELEASE_DATA" | jq -r ".assets | .[] | select(.name == \"${INPUT_FILE}\") | .id")
 fi
